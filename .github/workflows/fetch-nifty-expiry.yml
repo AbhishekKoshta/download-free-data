@@ -1,0 +1,58 @@
+name: Fetch NIFTY expiry CAS data
+
+# Runs every weekday after close and lets the puller itself decide whether
+# today is actually a listed NIFTY expiry (it checks Upstox's live
+# instrument master - see cas_expiry_common.py). No weekday is hardcoded
+# here on purpose: if a holiday shifts that week's expiry to the previous
+# trading day, or SEBI changes the weekly expiry day entirely, this keeps
+# working with zero edits - it just fires on the day the exchange says is
+# the expiry and no-ops (green, no commit) every other day.
+on:
+  schedule:
+    - cron: "15 10 * * 1-5"   # 15:45 IST, Mon-Fri
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch NIFTY expiry CAS data (no-op if today isn't a listed expiry)
+        id: fetch
+        run: |
+          OUT="$(python3 fetch_nifty_expiry_cas.py 2>&1)"
+          echo "$OUT"
+          FOLDER="$(echo "$OUT" | grep '^FOLDER=' | cut -d= -f2-)"
+          echo "folder=$FOLDER" >> "$GITHUB_OUTPUT"
+
+      - name: Build ATM collage
+        if: steps.fetch.outputs.folder != ''
+        run: python3 collage_atm_cas.py "$(basename "${{ steps.fetch.outputs.folder }}")"
+
+      - name: Commit and push new data (if any)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A -- '*_NIFTY'
+          if git diff --cached --quiet; then
+            echo "No new NIFTY data to commit."
+          else
+            git commit -m "Auto-fetch: NIFTY expiry CAS data ($(date -u +%Y-%m-%dT%H:%MZ))"
+            git pull --rebase origin main
+            git push
+          fi
