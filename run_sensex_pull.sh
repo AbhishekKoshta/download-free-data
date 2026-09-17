@@ -18,7 +18,7 @@ cd "$DIR" || exit 1
   echo "$OUT"
   FOLDER="$(echo "$OUT" | grep '^FOLDER=' | cut -d= -f2-)"
   if [ -n "$FOLDER" ]; then
-    COLLAGE_OUT="$("$PY" collage_atm_cas.py "expiry_data/$(basename "$FOLDER")" 2>&1)"
+    COLLAGE_OUT="$("$PY" collage_atm_cas.py "$FOLDER" 2>&1)"
     echo "$COLLAGE_OUT"
     COLLAGE_PNG="$(echo "$COLLAGE_OUT" | grep '^Wrote ' | sed 's/^Wrote //')"
     # Open the finished collage so a real run is visually obvious, not just a

@@ -176,7 +176,7 @@ def run(cfg: SymbolConfig, expiry_arg: str | None) -> None:
     exp_ms = listed_dates[expiry_date]
     print(f"{cfg.label} expiry: {expiry_date}")
 
-    day_dir = os.path.join(OUT_DIR, EXPIRY_SUBDIR, f"{expiry_date}_{cfg.label}")
+    day_dir = os.path.join(OUT_DIR, EXPIRY_SUBDIR, str(expiry_date), cfg.label)
     os.makedirs(day_dir, exist_ok=True)
 
     # 1) index candles for the window (shows the ~15:14 CAS freeze)

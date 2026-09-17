@@ -46,22 +46,16 @@ jobs:
 
       - name: Build ATM collage
         if: steps.fetch.outputs.folder != ''
-        run: python3 collage_atm_cas.py "expiry_data/$(basename "${{ steps.fetch.outputs.folder }}")"
+        run: python3 collage_atm_cas.py "${{ steps.fetch.outputs.folder }}"
 
       - name: Fetch daily 1-min front-week archive (every trading day)
         run: python3 fetch_sensex_daily_1min.py
 
       - name: Commit and push new data (if any)
         run: |
-          shopt -s nullglob
-          dirs=( expiry_data/*_SENSEX 1min_download/*_SENSEX )
-          if [ ${#dirs[@]} -eq 0 ]; then
-            echo "No SENSEX data folders present - nothing to add."
-            exit 0
-          fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A -- "${dirs[@]}"
+          git add -A -- expiry_data 1min_download
           if git diff --cached --quiet; then
             echo "No new SENSEX data to commit."
           else

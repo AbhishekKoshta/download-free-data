@@ -28,9 +28,10 @@ index and its ATM +/- a few strikes.
 - `run_nifty_pull.sh` / `run_sensex_pull.sh` — local launchd wrapper scripts
   (macOS only; see `~/Library/LaunchAgents/com.abhishekkoshta.*-expiry-pull.plist`).
   Run both the expiry pull (+ collage, opened automatically) and the daily pull.
-- `expiry_data/<expiry_date>_<SYMBOL>/` — one folder per expiry actually pulled,
-  containing the index CSV, one CSV per ATM+/-band option instrument,
-  `atm_strike.txt`, and the collage PNG.
+- `expiry_data/<expiry_date>/<SYMBOL>/` — one folder per expiry actually pulled
+  (date first, then symbol nested inside, so a date with both an expiry NIFTY
+  and SENSEX would sit side by side), containing the index CSV, one CSV per
+  ATM+/-band option instrument, `atm_strike.txt`, and the collage PNG.
 - `1min_download/<date>_<SYMBOL>/` — one folder per trading day, containing the
   index CSV, one CSV per ATM+/-band option instrument (of whatever the current
   front-week expiry is), `atm_strike.txt`, and `front_expiry.txt`.
@@ -91,10 +92,10 @@ Run from `~/Trading/download free data`.
 ### Manual fetch — expiry_data/ (bypasses the "is today the expiry" check)
 
 ```bash
-python3 fetch_nifty_expiry_cas.py                          # today, if it's a listed NIFTY expiry
-python3 fetch_sensex_expiry_cas.py                          # today, if it's a listed SENSEX expiry
-python3 fetch_nifty_expiry_cas.py 2026-09-22                 # an explicit, still-listed expiry date
-python3 collage_atm_cas.py "expiry_data/2026-09-22_NIFTY"    # rebuild the collage for a folder already pulled
+python3 fetch_nifty_expiry_cas.py                            # today, if it's a listed NIFTY expiry
+python3 fetch_sensex_expiry_cas.py                            # today, if it's a listed SENSEX expiry
+python3 fetch_nifty_expiry_cas.py 2026-09-22                   # an explicit, still-listed expiry date
+python3 collage_atm_cas.py "expiry_data/2026-09-22/NIFTY"      # rebuild the collage for a folder already pulled
 ```
 
 ### Manual fetch — 1min_download/ (any trading day, not just expiry)

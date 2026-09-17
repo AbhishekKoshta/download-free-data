@@ -1,10 +1,13 @@
 """1-min candlestick collage: SENSEX/NIFTY index + ATM CE + ATM PE, 15:00-15:30,
-for the CAS-freeze / 15:27-candle hypothesis. Reads the per-expiry folders that
-fetch_sensex_expiry_cas.py / fetch_nifty_expiry_cas.py already wrote.
+for the CAS-freeze / 15:27-candle hypothesis. Reads the expiry_data/<date>/<SYMBOL>
+folders that fetch_sensex_expiry_cas.py / fetch_nifty_expiry_cas.py already wrote.
 
 Usage:
-    python3 collage_atm_cas.py "2026-09-17_SENSEX"            # ATM read from atm_strike.txt
-    python3 collage_atm_cas.py "2026-09-17_SENSEX" 74400       # explicit ATM strike
+    python3 collage_atm_cas.py "expiry_data/2026-09-17/SENSEX"          # ATM read from atm_strike.txt
+    python3 collage_atm_cas.py "expiry_data/2026-09-17/SENSEX" 74400    # explicit ATM strike
+
+The folder argument can also be an absolute path (the runner scripts pass the
+FOLDER= line printed by the fetch scripts directly).
 """
 from __future__ import annotations
 import os
@@ -79,8 +82,10 @@ def main():
 
     idx_df, ce_df, pe_df = load(idx_path), load(ce_path), load(pe_path)
 
+    date_label = os.path.basename(os.path.dirname(base))  # base is .../<date>/<SYMBOL>
+
     fig, axes = plt.subplots(3, 1, figsize=(11, 10), facecolor="#fcfcfb")
-    fig.suptitle(f"{symbol} expiry {folder.split('_')[0]} - ATM {atm} - 15:00-15:30 (1-min)",
+    fig.suptitle(f"{symbol} expiry {date_label} - ATM {atm} - 15:00-15:30 (1-min)",
                  fontsize=13, color="#0b0b0b")
     draw_candles(axes[0], idx_df, f"{symbol} index")
     draw_candles(axes[1], ce_df, f"{atm} CE")
