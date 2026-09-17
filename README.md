@@ -64,3 +64,50 @@ python3 fetch_nifty_expiry_cas.py     # or fetch_sensex_expiry_cas.py
 ```
 
 For a specific already-listed expiry: `python3 fetch_nifty_expiry_cas.py 2026-09-22`.
+
+## Command reference
+
+Run from `~/Trading/download free data`.
+
+### Manual fetch (bypasses the "is today the expiry" check)
+
+```bash
+python3 fetch_nifty_expiry_cas.py                 # today, if it's a listed NIFTY expiry
+python3 fetch_sensex_expiry_cas.py                 # today, if it's a listed SENSEX expiry
+python3 fetch_nifty_expiry_cas.py 2026-09-22        # an explicit, still-listed expiry date
+python3 collage_atm_cas.py "2026-09-22_NIFTY"       # rebuild the collage for a folder already pulled
+```
+
+### Local macOS scheduler (launchd, Mon-Fri 15:45)
+
+```bash
+./setup_scheduler.sh status       # is it loaded?
+./setup_scheduler.sh install      # load both jobs (persists across reboot/login)
+./setup_scheduler.sh uninstall    # unload both jobs
+./setup_scheduler.sh run-now      # trigger both immediately, for testing
+tail -f logs/nifty_pull.log logs/sensex_pull.log   # watch the last local run
+```
+
+### Cloud scheduler (GitHub Actions — `gh` CLI, needs `gh auth login` once)
+
+```bash
+gh workflow list                                    # confirm both workflows are active
+gh workflow run fetch-nifty-expiry.yml               # trigger a run now, instead of waiting for cron
+gh workflow run fetch-sensex-expiry.yml
+gh run list --workflow=fetch-nifty-expiry.yml --limit 5   # recent run history + pass/fail
+gh run view <run-id> --log                           # full log of one run
+gh run view <run-id> --log-failed                     # just the failed step's log
+```
+
+### Sync your local clone with whatever the cloud job committed
+
+```bash
+git pull origin main
+```
+
+### Check what actually ran, without opening GitHub
+
+```bash
+git log --oneline -10                     # commit history (cloud + local runs both land here)
+git log --oneline --author="github-actions"   # only the automated commits
+```
