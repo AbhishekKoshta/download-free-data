@@ -23,8 +23,8 @@ from matplotlib.patches import Rectangle
 import pandas as pd
 
 UP, DOWN = "#26a69a", "#ef5350"     # same up/down pair as trade_snapshots.py (CVD-validated)
-FREEZE_HHMM = "15:14"
 HYPOTHESIS_HHMM = "15:27"
+MIN_FREEZE_RUN = 3      # consecutive identical index closes to call it a freeze, not noise
 WIN_START, WIN_END = "15:00", "15:30"
 
 
@@ -35,7 +35,26 @@ def load(path: str, win_start: str, win_end: str) -> pd.DataFrame:
     return df[(hhmm >= win_start) & (hhmm <= win_end)].reset_index(drop=True)
 
 
-def draw_candles(ax, df: pd.DataFrame, title: str, show_freeze_markers: bool = True):
+def detect_freeze_hhmm(idx_df: pd.DataFrame, min_run: int = MIN_FREEZE_RUN) -> str | None:
+    """Find the CAS freeze directly in the data (the exchange prints a flat
+    line from ~15:14 to just before close on an actual expiry day) instead of
+    assuming a fixed clock time: scan for the first run of >= min_run
+    consecutive identical index closes and return that run's HH:MM. Returns
+    None on an ordinary trading day, where the index just keeps moving."""
+    closes = idx_df["close"].tolist()
+    hhmm = idx_df["datetime"].dt.strftime("%H:%M").tolist()
+    i, n = 0, len(closes)
+    while i < n:
+        j = i
+        while j + 1 < n and closes[j + 1] == closes[i]:
+            j += 1
+        if j - i + 1 >= min_run:
+            return hhmm[i]
+        i = j + 1
+    return None
+
+
+def draw_candles(ax, df: pd.DataFrame, title: str, freeze_hhmm: str | None = None):
     for i, r in df.iterrows():
         up = r["close"] >= r["open"]
         col = UP if up else DOWN
@@ -45,15 +64,13 @@ def draw_candles(ax, df: pd.DataFrame, title: str, show_freeze_markers: bool = T
                                 facecolor=col, edgecolor=col, zorder=3))
 
     hhmm = df["datetime"].dt.strftime("%H:%M")
-    if show_freeze_markers:
-        # Only meaningful on an actual CAS expiry day - an ordinary trading
-        # day never freezes at 15:14, so collage_daily_1min.py disables this.
-        freeze_idx = hhmm[hhmm == FREEZE_HHMM].index
+    if freeze_hhmm is not None:
+        freeze_idx = hhmm[hhmm == freeze_hhmm].index
         hyp_idx = hhmm[hhmm == HYPOTHESIS_HHMM].index
         if len(freeze_idx):
             ax.axvline(freeze_idx[0], color="#898781", lw=1.1, ls="--", zorder=1)
             ax.text(freeze_idx[0], ax.get_ylim()[1] if ax.get_ylim()[1] else df["high"].max(),
-                    " 15:14 freeze", color="#52514e", fontsize=7, va="top", rotation=90)
+                    f" {freeze_hhmm} freeze", color="#52514e", fontsize=7, va="top", rotation=90)
         if len(hyp_idx):
             ax.axvspan(hyp_idx[0] - 0.5, hyp_idx[0] + 0.5, color="#eda100", alpha=0.15, zorder=0)
 
@@ -68,8 +85,7 @@ def draw_candles(ax, df: pd.DataFrame, title: str, show_freeze_markers: bool = T
 
 
 def build_collage(base: str, symbol: str, atm: str, suptitle: str,
-                   win_start: str, win_end: str, out_name: str,
-                   show_freeze_markers: bool = True) -> str:
+                   win_start: str, win_end: str, out_name: str) -> str:
     idx_path = os.path.join(base, f"{symbol.lower()}_index_1m.csv")
     ce_path = os.path.join(base, f"{symbol}_{atm}_CE.csv")
     pe_path = os.path.join(base, f"{symbol}_{atm}_PE.csv")
@@ -78,11 +94,17 @@ def build_collage(base: str, symbol: str, atm: str, suptitle: str,
     ce_df = load(ce_path, win_start, win_end)
     pe_df = load(pe_path, win_start, win_end)
 
+    # Detected once from the index, then applied to all three panels so the
+    # CE/PE charts also show where the underlying stopped moving - shows up
+    # on an actual expiry day (any collage, expiry_data/ or 1min_download/)
+    # and stays off on an ordinary trading day, with no hardcoded clock time.
+    freeze_hhmm = detect_freeze_hhmm(idx_df)
+
     fig, axes = plt.subplots(3, 1, figsize=(11, 10), facecolor="#fcfcfb")
     fig.suptitle(suptitle, fontsize=13, color="#0b0b0b")
-    draw_candles(axes[0], idx_df, f"{symbol} index", show_freeze_markers)
-    draw_candles(axes[1], ce_df, f"{atm} CE", show_freeze_markers)
-    draw_candles(axes[2], pe_df, f"{atm} PE", show_freeze_markers)
+    draw_candles(axes[0], idx_df, f"{symbol} index", freeze_hhmm)
+    draw_candles(axes[1], ce_df, f"{atm} CE", freeze_hhmm)
+    draw_candles(axes[2], pe_df, f"{atm} PE", freeze_hhmm)
     for ax in axes:
         ax.set_facecolor("#fcfcfb")
 
@@ -122,7 +144,6 @@ def main():
         suptitle=f"{symbol} expiry {date_label} - ATM {atm} - {WIN_START}-{WIN_END} (1-min)",
         win_start=WIN_START, win_end=WIN_END,
         out_name=f"collage_ATM{atm}_1500_1530.png",
-        show_freeze_markers=True,
     )
     print(f"Wrote {out_path}")
 
