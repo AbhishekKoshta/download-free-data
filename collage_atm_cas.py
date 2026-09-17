@@ -10,7 +10,11 @@ The folder argument can also be an absolute path (the runner scripts pass the
 FOLDER= line printed by the fetch scripts directly).
 
 `build_collage()` is shared with collage_daily_1min.py, which draws the same
-3-panel chart for the plain (no CAS-freeze) 1min_download/ archive.
+3-panel chart for the plain 1min_download/ archive. The freeze itself isn't
+expiry-conditional - confirmed 2026-09-17 on a day only SENSEX expired,
+NIFTY's index print froze too (~15:15-15:27) - so both collage types detect
+it straight from the data rather than assuming it only happens on that
+instrument's own expiry day.
 """
 from __future__ import annotations
 import os
@@ -37,7 +41,8 @@ def load(path: str, win_start: str, win_end: str) -> pd.DataFrame:
 
 def detect_freeze_hhmm(idx_df: pd.DataFrame, min_run: int = MIN_FREEZE_RUN) -> str | None:
     """Find the CAS freeze directly in the data (the exchange prints a flat
-    line from ~15:14 to just before close on an actual expiry day) instead of
+    line from ~15:14/15:15 to just before close - observed on ordinary
+    trading days too, not only that instrument's own expiry) instead of
     assuming a fixed clock time: scan for the first run of >= min_run
     consecutive identical index closes and return that run's HH:MM. Returns
     None on an ordinary trading day, where the index just keeps moving."""
@@ -95,9 +100,10 @@ def build_collage(base: str, symbol: str, atm: str, suptitle: str,
     pe_df = load(pe_path, win_start, win_end)
 
     # Detected once from the index, then applied to all three panels so the
-    # CE/PE charts also show where the underlying stopped moving - shows up
-    # on an actual expiry day (any collage, expiry_data/ or 1min_download/)
-    # and stays off on an ordinary trading day, with no hardcoded clock time.
+    # CE/PE charts also show where the underlying stopped moving. This isn't
+    # gated to expiry days - it shows up whenever the index actually freezes
+    # (which, per 2026-09-17 observation, is most/all days around 15:14-15:15,
+    # not just an instrument's own expiry), with no hardcoded clock time.
     freeze_hhmm = detect_freeze_hhmm(idx_df)
 
     fig, axes = plt.subplots(3, 1, figsize=(11, 10), facecolor="#fcfcfb")

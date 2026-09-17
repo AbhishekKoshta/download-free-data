@@ -1,11 +1,13 @@
 """1-min candlestick collages for the plain daily archive: SENSEX/NIFTY index
 + ATM CE + ATM PE. Writes TWO PNGs per run - the full session (09:15-15:30)
 and a zoomed last-hour view (14:30-15:30). A CAS freeze marker is drawn
-automatically (detected straight from the index data - see
-collage_atm_cas.detect_freeze_hhmm) if that day happens to actually be an
-expiry day; an ordinary trading day just shows plain candles. Reads the
-1min_download/<date>_<SYMBOL> folders that fetch_{nifty,sensex}_daily_1min.py
-already wrote.
+automatically whenever one is actually present in that day's data (detected
+straight from the index - see collage_atm_cas.detect_freeze_hhmm). This
+isn't limited to that symbol's own expiry day: observed 2026-09-17, NIFTY's
+index froze (~15:15-15:27) on a day only SENSEX expired, so the freeze looks
+like a general closing-auction-style mechanism, not an expiry-only one.
+Reads the 1min_download/<date>_<SYMBOL> folders that
+fetch_{nifty,sensex}_daily_1min.py already wrote.
 
 Usage:
     python3 collage_daily_1min.py "1min_download/2026-09-17_SENSEX"          # ATM read from atm_strike.txt
