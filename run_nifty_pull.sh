@@ -2,8 +2,10 @@
 # Runs standalone (no Claude Code / no network call to any LLM) - plain python +
 # bash, triggered by a macOS launchd job (see setup_scheduler.sh). Pulls the
 # NIFTY expiry-day CAS data (expiry_data/, builds the ATM CE/PE + index
-# collage), then separately pulls the daily front-week 1-min option-chain
-# archive (1min_download/) - that one runs every trading day, not just expiry.
+# collage; pushed to GitHub by the matching Actions workflow), then separately
+# pulls the daily front-week 1-min option-chain archive (1min_download/) -
+# that one runs every trading day, not just expiry, and stays LOCAL ONLY
+# (gitignored - never pushed to GitHub).
 set -uo pipefail
 
 DIR="/Users/abhishekkoshta/Trading/download free data"
@@ -38,8 +40,10 @@ cd "$DIR" || exit 1
   if [ -n "$DAILY_FOLDER" ]; then
     DAILY_COLLAGE_OUT="$("$PY" collage_daily_1min.py "$DAILY_FOLDER" 2>&1)"
     echo "$DAILY_COLLAGE_OUT"
-    DAILY_COLLAGE_PNG="$(echo "$DAILY_COLLAGE_OUT" | grep '^Wrote ' | sed 's/^Wrote //')"
-    [ -n "$DAILY_COLLAGE_PNG" ] && open "$DAILY_COLLAGE_PNG" 2>&1
+    # collage_daily_1min.py writes two PNGs (full day + last hour) - open each.
+    echo "$DAILY_COLLAGE_OUT" | grep '^Wrote ' | sed 's/^Wrote //' | while IFS= read -r png; do
+      open "$png" 2>&1
+    done
   fi
   echo "===== done ====="
 } >> "$LOG" 2>&1

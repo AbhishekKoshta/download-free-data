@@ -2,3 +2,7 @@ logs/
 __pycache__/
 *.pyc
 .DS_Store
+
+# Local-only daily archive - stays on this machine, never pushed to GitHub
+# (only expiry_data/ is meant to be public/cloud-synced). See README.
+1min_download/

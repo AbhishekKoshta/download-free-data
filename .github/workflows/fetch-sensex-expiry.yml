@@ -1,13 +1,13 @@
-name: Fetch SENSEX expiry + daily 1-min data
+name: Fetch SENSEX expiry CAS data
 
-# Two pulls, every weekday after close:
-#  1. expiry_data/ - the CAS-freeze study, only on an ACTUAL SENSEX expiry day
-#     (the puller checks Upstox's live instrument master itself - see
-#     cas_expiry_common.py - so no weekday is hardcoded here; a holiday shift
-#     or a SEBI expiry-day change just works, no edits needed).
-#  2. 1min_download/ - the front-week ATM+/-band option chain, EVERY trading
-#     day regardless of expiry, so that data isn't lost once the week's
-#     contract rolls off Upstox's free API at expiry.
+# expiry_data/ - the CAS-freeze study, only on an ACTUAL SENSEX expiry day
+# (the puller checks Upstox's live instrument master itself - see
+# cas_expiry_common.py - so no weekday is hardcoded here; a holiday shift or
+# a SEBI expiry-day change just works, no edits needed).
+#
+# The daily 1min_download/ front-week archive is deliberately NOT pulled
+# here - it's local-only (see run_sensex_pull.sh / README), so it never
+# touches this repo.
 #
 # Offset 5 min from the NIFTY workflow (fetch-nifty-expiry.yml) so the two
 # rarely race on the same push; either way both rebase before pushing.
@@ -48,27 +48,15 @@ jobs:
         if: steps.fetch.outputs.folder != ''
         run: python3 collage_atm_cas.py "${{ steps.fetch.outputs.folder }}"
 
-      - name: Fetch daily 1-min front-week archive (every trading day)
-        id: daily
-        run: |
-          OUT="$(python3 fetch_sensex_daily_1min.py 2>&1)"
-          echo "$OUT"
-          FOLDER="$(echo "$OUT" | grep '^FOLDER=' | cut -d= -f2-)"
-          echo "folder=$FOLDER" >> "$GITHUB_OUTPUT"
-
-      - name: Build daily full-day collage
-        if: steps.daily.outputs.folder != ''
-        run: python3 collage_daily_1min.py "${{ steps.daily.outputs.folder }}"
-
       - name: Commit and push new data (if any)
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A -- expiry_data 1min_download
+          git add -A -- expiry_data
           if git diff --cached --quiet; then
             echo "No new SENSEX data to commit."
           else
-            git commit -m "Auto-fetch: SENSEX data ($(date -u +%Y-%m-%dT%H:%MZ))"
+            git commit -m "Auto-fetch: SENSEX expiry CAS data ($(date -u +%Y-%m-%dT%H:%MZ))"
             git pull --rebase origin main
             git push
           fi
