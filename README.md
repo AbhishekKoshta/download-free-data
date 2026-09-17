@@ -24,17 +24,23 @@ index and its ATM +/- a few strikes.
 - `fetch_nifty_daily_1min.py` / `fetch_sensex_daily_1min.py` — daily front-week
   pull, same per-exchange config -> `1min_download/`.
 - `collage_atm_cas.py` — builds a 3-panel (index/ATM CE/ATM PE) 15:00-15:30
-  candlestick collage PNG from a fetched `expiry_data/` folder.
+  candlestick collage PNG from a fetched `expiry_data/` folder, with the
+  15:14 freeze / 15:27 hypothesis markers.
+- `collage_daily_1min.py` — same 3-panel chart but full-day (09:15-15:30) and
+  without the freeze markers, for a `1min_download/` folder (an ordinary
+  trading day never freezes). Shares `build_collage()` with `collage_atm_cas.py`.
 - `run_nifty_pull.sh` / `run_sensex_pull.sh` — local launchd wrapper scripts
   (macOS only; see `~/Library/LaunchAgents/com.abhishekkoshta.*-expiry-pull.plist`).
-  Run both the expiry pull (+ collage, opened automatically) and the daily pull.
+  Run the expiry pull + collage, then the daily pull + collage, opening both
+  collages automatically.
 - `expiry_data/<expiry_date>/<SYMBOL>/` — one folder per expiry actually pulled
   (date first, then symbol nested inside, so a date with both an expiry NIFTY
   and SENSEX would sit side by side), containing the index CSV, one CSV per
   ATM+/-band option instrument, `atm_strike.txt`, and the collage PNG.
 - `1min_download/<date>_<SYMBOL>/` — one folder per trading day, containing the
   index CSV, one CSV per ATM+/-band option instrument (of whatever the current
-  front-week expiry is), `atm_strike.txt`, and `front_expiry.txt`.
+  front-week expiry is), `atm_strike.txt`, `front_expiry.txt`, and the
+  full-day collage PNG.
 
 ## Scheduling — and why it's weekday-agnostic
 
@@ -101,9 +107,10 @@ python3 collage_atm_cas.py "expiry_data/2026-09-22/NIFTY"      # rebuild the col
 ### Manual fetch — 1min_download/ (any trading day, not just expiry)
 
 ```bash
-python3 fetch_nifty_daily_1min.py                  # today's front-week NIFTY chain
-python3 fetch_sensex_daily_1min.py                  # today's front-week SENSEX chain
-python3 fetch_nifty_daily_1min.py 2026-09-16         # a specific earlier day this front week
+python3 fetch_nifty_daily_1min.py                                 # today's front-week NIFTY chain
+python3 fetch_sensex_daily_1min.py                                 # today's front-week SENSEX chain
+python3 fetch_nifty_daily_1min.py 2026-09-16                        # a specific earlier day this front week
+python3 collage_daily_1min.py "1min_download/2026-09-16_NIFTY"      # rebuild the full-day collage
 ```
 
 ### Local macOS scheduler (launchd, Mon-Fri 15:45)

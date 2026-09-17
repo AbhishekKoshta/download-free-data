@@ -49,7 +49,16 @@ jobs:
         run: python3 collage_atm_cas.py "${{ steps.fetch.outputs.folder }}"
 
       - name: Fetch daily 1-min front-week archive (every trading day)
-        run: python3 fetch_sensex_daily_1min.py
+        id: daily
+        run: |
+          OUT="$(python3 fetch_sensex_daily_1min.py 2>&1)"
+          echo "$OUT"
+          FOLDER="$(echo "$OUT" | grep '^FOLDER=' | cut -d= -f2-)"
+          echo "folder=$FOLDER" >> "$GITHUB_OUTPUT"
+
+      - name: Build daily full-day collage
+        if: steps.daily.outputs.folder != ''
+        run: python3 collage_daily_1min.py "${{ steps.daily.outputs.folder }}"
 
       - name: Commit and push new data (if any)
         run: |

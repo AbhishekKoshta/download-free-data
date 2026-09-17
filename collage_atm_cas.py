@@ -8,6 +8,9 @@ Usage:
 
 The folder argument can also be an absolute path (the runner scripts pass the
 FOLDER= line printed by the fetch scripts directly).
+
+`build_collage()` is shared with collage_daily_1min.py, which draws the same
+3-panel chart for the plain (no CAS-freeze) 1min_download/ archive.
 """
 from __future__ import annotations
 import os
@@ -25,14 +28,14 @@ HYPOTHESIS_HHMM = "15:27"
 WIN_START, WIN_END = "15:00", "15:30"
 
 
-def load(path: str) -> pd.DataFrame:
+def load(path: str, win_start: str, win_end: str) -> pd.DataFrame:
     df = pd.read_csv(path)
     df["datetime"] = pd.to_datetime(df["datetime"])
     hhmm = df["datetime"].dt.strftime("%H:%M")
-    return df[(hhmm >= WIN_START) & (hhmm <= WIN_END)].reset_index(drop=True)
+    return df[(hhmm >= win_start) & (hhmm <= win_end)].reset_index(drop=True)
 
 
-def draw_candles(ax, df: pd.DataFrame, title: str):
+def draw_candles(ax, df: pd.DataFrame, title: str, show_freeze_markers: bool = True):
     for i, r in df.iterrows():
         up = r["close"] >= r["open"]
         col = UP if up else DOWN
@@ -42,14 +45,17 @@ def draw_candles(ax, df: pd.DataFrame, title: str):
                                 facecolor=col, edgecolor=col, zorder=3))
 
     hhmm = df["datetime"].dt.strftime("%H:%M")
-    freeze_idx = hhmm[hhmm == FREEZE_HHMM].index
-    hyp_idx = hhmm[hhmm == HYPOTHESIS_HHMM].index
-    if len(freeze_idx):
-        ax.axvline(freeze_idx[0], color="#898781", lw=1.1, ls="--", zorder=1)
-        ax.text(freeze_idx[0], ax.get_ylim()[1] if ax.get_ylim()[1] else df["high"].max(),
-                " 15:14 freeze", color="#52514e", fontsize=7, va="top", rotation=90)
-    if len(hyp_idx):
-        ax.axvspan(hyp_idx[0] - 0.5, hyp_idx[0] + 0.5, color="#eda100", alpha=0.15, zorder=0)
+    if show_freeze_markers:
+        # Only meaningful on an actual CAS expiry day - an ordinary trading
+        # day never freezes at 15:14, so collage_daily_1min.py disables this.
+        freeze_idx = hhmm[hhmm == FREEZE_HHMM].index
+        hyp_idx = hhmm[hhmm == HYPOTHESIS_HHMM].index
+        if len(freeze_idx):
+            ax.axvline(freeze_idx[0], color="#898781", lw=1.1, ls="--", zorder=1)
+            ax.text(freeze_idx[0], ax.get_ylim()[1] if ax.get_ylim()[1] else df["high"].max(),
+                    " 15:14 freeze", color="#52514e", fontsize=7, va="top", rotation=90)
+        if len(hyp_idx):
+            ax.axvspan(hyp_idx[0] - 0.5, hyp_idx[0] + 0.5, color="#eda100", alpha=0.15, zorder=0)
 
     step = max(1, len(df) // 10)
     ax.set_xticks(range(0, len(df), step))
@@ -61,35 +67,22 @@ def draw_candles(ax, df: pd.DataFrame, title: str):
         spine.set_color("#c3c2b7")
 
 
-def main():
-    if len(sys.argv) < 2:
-        raise SystemExit("Usage: python3 collage_atm_cas.py <expiry_folder> [atm_strike]")
-    folder = sys.argv[1]
-    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), folder)
-
-    if len(sys.argv) > 2:
-        atm = sys.argv[2]
-    else:
-        atm_path = os.path.join(base, "atm_strike.txt")
-        if not os.path.exists(atm_path):
-            raise SystemExit(f"No atm_strike.txt in {base} and no strike given on the command line")
-        atm = open(atm_path).read().strip()
-
-    symbol = "SENSEX" if "SENSEX" in folder.upper() else "NIFTY"
+def build_collage(base: str, symbol: str, atm: str, suptitle: str,
+                   win_start: str, win_end: str, out_name: str,
+                   show_freeze_markers: bool = True) -> str:
     idx_path = os.path.join(base, f"{symbol.lower()}_index_1m.csv")
     ce_path = os.path.join(base, f"{symbol}_{atm}_CE.csv")
     pe_path = os.path.join(base, f"{symbol}_{atm}_PE.csv")
 
-    idx_df, ce_df, pe_df = load(idx_path), load(ce_path), load(pe_path)
-
-    date_label = os.path.basename(os.path.dirname(base))  # base is .../<date>/<SYMBOL>
+    idx_df = load(idx_path, win_start, win_end)
+    ce_df = load(ce_path, win_start, win_end)
+    pe_df = load(pe_path, win_start, win_end)
 
     fig, axes = plt.subplots(3, 1, figsize=(11, 10), facecolor="#fcfcfb")
-    fig.suptitle(f"{symbol} expiry {date_label} - ATM {atm} - 15:00-15:30 (1-min)",
-                 fontsize=13, color="#0b0b0b")
-    draw_candles(axes[0], idx_df, f"{symbol} index")
-    draw_candles(axes[1], ce_df, f"{atm} CE")
-    draw_candles(axes[2], pe_df, f"{atm} PE")
+    fig.suptitle(suptitle, fontsize=13, color="#0b0b0b")
+    draw_candles(axes[0], idx_df, f"{symbol} index", show_freeze_markers)
+    draw_candles(axes[1], ce_df, f"{atm} CE", show_freeze_markers)
+    draw_candles(axes[2], pe_df, f"{atm} PE", show_freeze_markers)
     for ax in axes:
         ax.set_facecolor("#fcfcfb")
 
@@ -98,8 +91,39 @@ def main():
                 labels=["up candle", "down candle"], loc="upper right", fontsize=8, frameon=False)
 
     fig.tight_layout(rect=(0, 0, 1, 0.96))
-    out_path = os.path.join(base, f"collage_ATM{atm}_1500_1530.png")
+    out_path = os.path.join(base, out_name)
     fig.savefig(out_path, dpi=160)
+    return out_path
+
+
+def _resolve_folder_atm(folder: str) -> tuple[str, str, str]:
+    """Shared CLI arg handling: returns (base_dir, symbol, atm)."""
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), folder)
+    if len(sys.argv) > 2:
+        atm = sys.argv[2]
+    else:
+        atm_path = os.path.join(base, "atm_strike.txt")
+        if not os.path.exists(atm_path):
+            raise SystemExit(f"No atm_strike.txt in {base} and no strike given on the command line")
+        atm = open(atm_path).read().strip()
+    symbol = "SENSEX" if "SENSEX" in folder.upper() else "NIFTY"
+    return base, symbol, atm
+
+
+def main():
+    if len(sys.argv) < 2:
+        raise SystemExit("Usage: python3 collage_atm_cas.py <expiry_folder> [atm_strike]")
+    folder = sys.argv[1]
+    base, symbol, atm = _resolve_folder_atm(folder)
+    date_label = os.path.basename(os.path.dirname(base))  # base is .../<date>/<SYMBOL>
+
+    out_path = build_collage(
+        base, symbol, atm,
+        suptitle=f"{symbol} expiry {date_label} - ATM {atm} - {WIN_START}-{WIN_END} (1-min)",
+        win_start=WIN_START, win_end=WIN_END,
+        out_name=f"collage_ATM{atm}_1500_1530.png",
+        show_freeze_markers=True,
+    )
     print(f"Wrote {out_path}")
 
 

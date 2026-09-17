@@ -32,6 +32,14 @@ cd "$DIR" || exit 1
   fi
 
   echo "----- daily 1-min archive -----"
-  "$PY" fetch_nifty_daily_1min.py 2>&1
+  DAILY_OUT="$("$PY" fetch_nifty_daily_1min.py 2>&1)"
+  echo "$DAILY_OUT"
+  DAILY_FOLDER="$(echo "$DAILY_OUT" | grep '^FOLDER=' | cut -d= -f2-)"
+  if [ -n "$DAILY_FOLDER" ]; then
+    DAILY_COLLAGE_OUT="$("$PY" collage_daily_1min.py "$DAILY_FOLDER" 2>&1)"
+    echo "$DAILY_COLLAGE_OUT"
+    DAILY_COLLAGE_PNG="$(echo "$DAILY_COLLAGE_OUT" | grep '^Wrote ' | sed 's/^Wrote //')"
+    [ -n "$DAILY_COLLAGE_PNG" ] && open "$DAILY_COLLAGE_PNG" 2>&1
+  fi
   echo "===== done ====="
 } >> "$LOG" 2>&1
