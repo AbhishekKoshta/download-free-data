@@ -16,7 +16,13 @@ cd "$DIR" || exit 1
   echo "$OUT"
   FOLDER="$(echo "$OUT" | grep '^FOLDER=' | cut -d= -f2-)"
   if [ -n "$FOLDER" ]; then
-    "$PY" collage_atm_cas.py "$(basename "$FOLDER")" 2>&1
+    COLLAGE_OUT="$("$PY" collage_atm_cas.py "$(basename "$FOLDER")" 2>&1)"
+    echo "$COLLAGE_OUT"
+    COLLAGE_PNG="$(echo "$COLLAGE_OUT" | grep '^Wrote ' | sed 's/^Wrote //')"
+    # Open the finished collage so a real run is visually obvious, not just a
+    # log line - this only makes sense for a local/GUI session (launchd or a
+    # manual run), never in GitHub Actions' headless runner.
+    [ -n "$COLLAGE_PNG" ] && open "$COLLAGE_PNG" 2>&1
   elif echo "$OUT" | grep -q '^SKIP:'; then
     echo "not an expiry day - skipped cleanly, nothing to collage"
   else
