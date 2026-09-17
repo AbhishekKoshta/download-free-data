@@ -113,11 +113,25 @@ def run(cfg: SymbolConfig, expiry_arg: str | None) -> None:
         # itself a listed expiry - this lets a daily cron/launchd run safely
         # every weekday and self-adjust to either kind of change with no code
         # edits, instead of guessing "today + N days" against a fixed weekday.
-        today = datetime.now(IST).date()
+        now = datetime.now(IST)
+        today = now.date()
         if today not in listed_dates:
             upcoming = min((d for d in listed_dates if d >= today), default=None)
             print(f"SKIP: {today} is not a listed {cfg.label} expiry "
                   f"(next listed expiry: {upcoming}) - nothing to do today")
+            return
+        # Guards the launchd RunAtLoad catch-up (fires on every login/wake, not
+        # just the 15:45 slot, so it can pick up a run missed because the
+        # laptop was off): if you log in mid-session on an actual expiry day,
+        # the window isn't complete yet and the ~15:14 freeze print wouldn't be
+        # in the data, so `ref_close` below would pick the wrong (premature)
+        # price. Wait for the CAS-extended options close instead of fetching
+        # a partial day.
+        close_hhmm = f"{WINDOW_END[0]:02d}:{WINDOW_END[1]:02d}"
+        if now.strftime("%H:%M") < close_hhmm:
+            print(f"SKIP: {today} is a listed {cfg.label} expiry but it's only "
+                  f"{now.strftime('%H:%M')} IST - market/CAS window isn't closed yet "
+                  f"(waits for {close_hhmm}). Run again after close.")
             return
         expiry_date = today
     exp_ms = listed_dates[expiry_date]
