@@ -1,24 +1,39 @@
 # download-free-data
 
-Free-API data pullers for the CAS (Closing Auction Session) expiry-day research
-in `~/Trading` (NIFTY/SENSEX index-freeze hypothesis — see the main workspace's
-`CLAUDE.md`). Every weekly expiry, this pulls the full trading day (09:15-15:40
-IST) of 1-min candles for the index and its ATM +/- a few strikes, from Upstox's
-free no-auth public API.
+Free-API (Upstox, no auth) data pullers for NIFTY/SENSEX 1-min index + option
+data, for two purposes that live in two separate folders:
+
+- **`expiry_data/`** — the CAS (Closing Auction Session) expiry-day research
+  in `~/Trading` (NIFTY/SENSEX index-freeze hypothesis — see the main
+  workspace's `CLAUDE.md`). Only pulled on an actual expiry day.
+- **`1min_download/`** — a plain daily archive of the front-week ATM+/-band
+  option chain, pulled on **every trading day**, not just expiry. Upstox's
+  free API drops a contract the moment it expires, so this is the only way to
+  keep that week's intraday option data around for later algo backtesting —
+  without it, everything before expiry day itself is lost for good.
+
+Both pull the full trading day (09:15-15:40 IST) of 1-min candles for the
+index and its ATM +/- a few strikes.
 
 ## Files
 
 - `cas_expiry_common.py` — shared puller logic (instrument master lookup,
-  1-min candle fetch, CSV writer).
-- `fetch_nifty_expiry_cas.py` / `fetch_sensex_expiry_cas.py` — per-exchange config
-  (NSE/Upstox `NIFTY`, BSE/Upstox `SENSEX`).
+  1-min candle fetch, CSV writer) for both `expiry_data/` and `1min_download/`.
+- `fetch_nifty_expiry_cas.py` / `fetch_sensex_expiry_cas.py` — expiry-day pull
+  (per-exchange config: NSE/Upstox `NIFTY`, BSE/Upstox `SENSEX`) -> `expiry_data/`.
+- `fetch_nifty_daily_1min.py` / `fetch_sensex_daily_1min.py` — daily front-week
+  pull, same per-exchange config -> `1min_download/`.
 - `collage_atm_cas.py` — builds a 3-panel (index/ATM CE/ATM PE) 15:00-15:30
-  candlestick collage PNG from a fetched folder.
+  candlestick collage PNG from a fetched `expiry_data/` folder.
 - `run_nifty_pull.sh` / `run_sensex_pull.sh` — local launchd wrapper scripts
   (macOS only; see `~/Library/LaunchAgents/com.abhishekkoshta.*-expiry-pull.plist`).
-- `<expiry_date>_<SYMBOL>/` — one folder per expiry actually pulled, containing
-  the index CSV, one CSV per ATM+/-band option instrument, `atm_strike.txt`,
-  and the collage PNG.
+  Run both the expiry pull (+ collage, opened automatically) and the daily pull.
+- `expiry_data/<expiry_date>_<SYMBOL>/` — one folder per expiry actually pulled,
+  containing the index CSV, one CSV per ATM+/-band option instrument,
+  `atm_strike.txt`, and the collage PNG.
+- `1min_download/<date>_<SYMBOL>/` — one folder per trading day, containing the
+  index CSV, one CSV per ATM+/-band option instrument (of whatever the current
+  front-week expiry is), `atm_strike.txt`, and `front_expiry.txt`.
 
 ## Scheduling — and why it's weekday-agnostic
 
@@ -52,30 +67,42 @@ new day automatically.
 Upstox's free API only serves *currently listed* contracts. Once a weekly
 expiry passes, it drops out of the master and its 1-min history isn't
 reachable without an authenticated "expired instruments" call (OAuth, not
-set up here). So each symbol's puller must run **on its own expiry day**,
-shortly after close and before the next day's rollover — which is exactly
-what the daily-check schedule above guarantees.
+set up here). This is exactly why `1min_download/` exists: `expiry_data/`
+alone only ever captures the final day of a contract's life, so running the
+daily pull too — every trading day, not just expiry — is the only way to
+retain that week's earlier intraday option data before it rolls off the
+master for good.
 
 ## Setup
 
 ```bash
 pip install -r requirements.txt
-python3 fetch_nifty_expiry_cas.py     # or fetch_sensex_expiry_cas.py
+python3 fetch_nifty_expiry_cas.py     # or fetch_sensex_expiry_cas.py -> expiry_data/
+python3 fetch_nifty_daily_1min.py     # or fetch_sensex_daily_1min.py -> 1min_download/
 ```
 
 For a specific already-listed expiry: `python3 fetch_nifty_expiry_cas.py 2026-09-22`.
+For a specific earlier day this front week: `python3 fetch_nifty_daily_1min.py 2026-09-16`.
 
 ## Command reference
 
 Run from `~/Trading/download free data`.
 
-### Manual fetch (bypasses the "is today the expiry" check)
+### Manual fetch — expiry_data/ (bypasses the "is today the expiry" check)
 
 ```bash
-python3 fetch_nifty_expiry_cas.py                 # today, if it's a listed NIFTY expiry
-python3 fetch_sensex_expiry_cas.py                 # today, if it's a listed SENSEX expiry
-python3 fetch_nifty_expiry_cas.py 2026-09-22        # an explicit, still-listed expiry date
-python3 collage_atm_cas.py "2026-09-22_NIFTY"       # rebuild the collage for a folder already pulled
+python3 fetch_nifty_expiry_cas.py                          # today, if it's a listed NIFTY expiry
+python3 fetch_sensex_expiry_cas.py                          # today, if it's a listed SENSEX expiry
+python3 fetch_nifty_expiry_cas.py 2026-09-22                 # an explicit, still-listed expiry date
+python3 collage_atm_cas.py "expiry_data/2026-09-22_NIFTY"    # rebuild the collage for a folder already pulled
+```
+
+### Manual fetch — 1min_download/ (any trading day, not just expiry)
+
+```bash
+python3 fetch_nifty_daily_1min.py                  # today's front-week NIFTY chain
+python3 fetch_sensex_daily_1min.py                  # today's front-week SENSEX chain
+python3 fetch_nifty_daily_1min.py 2026-09-16         # a specific earlier day this front week
 ```
 
 ### Local macOS scheduler (launchd, Mon-Fri 15:45)

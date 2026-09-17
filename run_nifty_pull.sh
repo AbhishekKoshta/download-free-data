@@ -1,7 +1,9 @@
 #!/bin/bash
 # Runs standalone (no Claude Code / no network call to any LLM) - plain python +
 # bash, triggered by a macOS launchd job (see setup_scheduler.sh). Pulls the
-# NIFTY expiry-day CAS data, then builds the ATM CE/PE + index collage.
+# NIFTY expiry-day CAS data (expiry_data/, builds the ATM CE/PE + index
+# collage), then separately pulls the daily front-week 1-min option-chain
+# archive (1min_download/) - that one runs every trading day, not just expiry.
 set -uo pipefail
 
 DIR="/Users/abhishekkoshta/Trading/download free data"
@@ -16,7 +18,7 @@ cd "$DIR" || exit 1
   echo "$OUT"
   FOLDER="$(echo "$OUT" | grep '^FOLDER=' | cut -d= -f2-)"
   if [ -n "$FOLDER" ]; then
-    COLLAGE_OUT="$("$PY" collage_atm_cas.py "$(basename "$FOLDER")" 2>&1)"
+    COLLAGE_OUT="$("$PY" collage_atm_cas.py "expiry_data/$(basename "$FOLDER")" 2>&1)"
     echo "$COLLAGE_OUT"
     COLLAGE_PNG="$(echo "$COLLAGE_OUT" | grep '^Wrote ' | sed 's/^Wrote //')"
     # Open the finished collage so a real run is visually obvious, not just a
@@ -28,5 +30,8 @@ cd "$DIR" || exit 1
   else
     echo "no FOLDER= line found - fetch failed, skipping collage"
   fi
+
+  echo "----- daily 1-min archive -----"
+  "$PY" fetch_nifty_daily_1min.py 2>&1
   echo "===== done ====="
 } >> "$LOG" 2>&1

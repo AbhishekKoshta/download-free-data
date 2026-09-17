@@ -1,12 +1,13 @@
-name: Fetch NIFTY expiry CAS data
+name: Fetch NIFTY expiry + daily 1-min data
 
-# Runs every weekday after close and lets the puller itself decide whether
-# today is actually a listed NIFTY expiry (it checks Upstox's live
-# instrument master - see cas_expiry_common.py). No weekday is hardcoded
-# here on purpose: if a holiday shifts that week's expiry to the previous
-# trading day, or SEBI changes the weekly expiry day entirely, this keeps
-# working with zero edits - it just fires on the day the exchange says is
-# the expiry and no-ops (green, no commit) every other day.
+# Two pulls, every weekday after close:
+#  1. expiry_data/ - the CAS-freeze study, only on an ACTUAL NIFTY expiry day
+#     (the puller checks Upstox's live instrument master itself - see
+#     cas_expiry_common.py - so no weekday is hardcoded here; a holiday shift
+#     or a SEBI expiry-day change just works, no edits needed).
+#  2. 1min_download/ - the front-week ATM+/-band option chain, EVERY trading
+#     day regardless of expiry, so that data isn't lost once the week's
+#     contract rolls off Upstox's free API at expiry.
 on:
   schedule:
     - cron: "15 10 * * 1-5"   # 15:45 IST, Mon-Fri
@@ -42,14 +43,17 @@ jobs:
 
       - name: Build ATM collage
         if: steps.fetch.outputs.folder != ''
-        run: python3 collage_atm_cas.py "$(basename "${{ steps.fetch.outputs.folder }}")"
+        run: python3 collage_atm_cas.py "expiry_data/$(basename "${{ steps.fetch.outputs.folder }}")"
+
+      - name: Fetch daily 1-min front-week archive (every trading day)
+        run: python3 fetch_nifty_daily_1min.py
 
       - name: Commit and push new data (if any)
         run: |
           shopt -s nullglob
-          dirs=( *_NIFTY )
+          dirs=( expiry_data/*_NIFTY 1min_download/*_NIFTY )
           if [ ${#dirs[@]} -eq 0 ]; then
-            echo "No NIFTY expiry folder present - nothing to add."
+            echo "No NIFTY data folders present - nothing to add."
             exit 0
           fi
           git config user.name  "github-actions[bot]"
@@ -58,7 +62,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No new NIFTY data to commit."
           else
-            git commit -m "Auto-fetch: NIFTY expiry CAS data ($(date -u +%Y-%m-%dT%H:%MZ))"
+            git commit -m "Auto-fetch: NIFTY data ($(date -u +%Y-%m-%dT%H:%MZ))"
             git pull --rebase origin main
             git push
           fi
